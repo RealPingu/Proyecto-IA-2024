@@ -2,6 +2,9 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <fstream>
+#include <string>
+#include <sstream>
 
 using namespace std;
 
@@ -145,14 +148,109 @@ void generateTruckRoute(kMVDRPConfig &config)
     cout << "\n[Fin] El camión regresa al origen.\n";
 }
 
-// Ejemplo de ejecución del modelo con la configuración simplificada
-int main()
+// Cargar instancia desde dataset
+bool loadDataset(const string &filepath, kMVDRPConfig &config)
+{
+    ifstream file(filepath);
+    if (!file.is_open())
+    {
+        cerr << "No se pudo abrir el archivo de dataset: " << filepath << "\n";
+        return false;
+    }
+
+    string line;
+    while (getline(file, line))
+    {
+        if (line.empty() || line[0] == '#')
+            continue;
+
+        istringstream iss(line);
+        string tag;
+        iss >> tag;
+
+        if (tag == "TRUCK")
+        {
+            double speed, penalty, ox, oy;
+            iss >> speed >> penalty >> ox >> oy;
+            config.truck = {{0, ox, oy}, speed, penalty};
+        }
+        else if (tag == "DRONES")
+        {
+            int count;
+            double speed, maxLoad;
+            iss >> count >> speed >> maxLoad;
+            config.drones.clear();
+            for (int i = 0; i < count; ++i)
+            {
+                config.drones.push_back({speed, maxLoad, {}});
+            }
+        }
+        else if (tag == "LAUNCH_LOCATIONS")
+        {
+            int count;
+            iss >> count;
+            config.launchLocations.clear();
+            for (int i = 0; i < count; ++i)
+            {
+                getline(file, line);
+                while (line.empty() || line[0] == '#')
+                    getline(file, line);
+                istringstream lss(line);
+                int id;
+                double x, y;
+                lss >> id >> x >> y;
+                config.launchLocations.push_back({id, x, y});
+            }
+        }
+        else if (tag == "CUSTOMERS")
+        {
+            int count;
+            iss >> count;
+            config.customers.clear();
+            for (int i = 0; i < count; ++i)
+            {
+                getline(file, line);
+                while (line.empty() || line[0] == '#')
+                    getline(file, line);
+                istringstream css(line);
+                int id;
+                double x, y, weight;
+                css >> id >> x >> y >> weight;
+                config.customers.push_back({{id, x, y}, weight});
+            }
+        }
+    }
+    return true;
+}
+
+int main(int argc, char *argv[])
 {
     kMVDRPConfig config;
-    config.truck = {{0, 0, 0}, 5.0, 10.0};
-    config.drones = {{10.0, 5.0}, {10.0, 5.0}}; // Drones con velocidad constante y capacidad máxima de 5 kg
-    config.customers = {{{1, 10, 20}, 1.5}, {{2, 15, 25}, 2.0}, {{3, 18, 30}, 1.0}};
-    config.launchLocations = {{0, 5, 10}, {1, 20, 25}};
+
+    if (argc > 1)
+    {
+        cout << "Cargando dataset desde: " << argv[1] << "\n";
+        if (!loadDataset(argv[1], config))
+        {
+            cerr << "Cargando configuración por defecto...\n";
+            config.truck = {{0, 0, 0}, 5.0, 10.0};
+            config.drones = {{10.0, 5.0, {}}, {10.0, 5.0, {}}};
+            config.customers = {{{1, 10, 20}, 1.5}, {{2, 15, 25}, 2.0}, {{3, 18, 30}, 1.0}};
+            config.launchLocations = {{0, 5, 10}, {1, 20, 25}};
+        }
+    }
+    else
+    {
+        cout << "Sin argumento de dataset. Usando configuración por defecto...\n";
+        config.truck = {{0, 0, 0}, 5.0, 10.0};
+        config.drones = {{10.0, 5.0, {}}, {10.0, 5.0, {}}};
+        config.customers = {{{1, 10, 20}, 1.5}, {{2, 15, 25}, 2.0}, {{3, 18, 30}, 1.0}};
+        config.launchLocations = {{0, 5, 10}, {1, 20, 25}};
+    }
+
+    cout << "Problema configurado: " << config.drones.size() << " drones, "
+         << config.customers.size() << " clientes, "
+         << config.launchLocations.size() << " ubicaciones de lanzamiento.\n";
 
     generateTruckRoute(config);
 
